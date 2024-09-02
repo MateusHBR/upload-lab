@@ -16,18 +16,10 @@ Future<Response> onRequest(RequestContext context) async {
     );
   }
 
-  if (!Directory(uploadDirectory).existsSync()) {
-    await Directory(uploadDirectory).create();
-  }
-
   final fileExtension = file.name.split('.').last;
   final bytes = await file.readAsBytes();
   await File(
     '$uploadDirectory/${uuid.v4()}.$fileExtension',
   ).writeAsBytes(bytes);
-  return Response.json(
-    body: {
-      'data': 'Successfully uploaded!',
-    },
-  );
+  return Response.json(body: {'data': 'Successfully uploaded!'});
 }
