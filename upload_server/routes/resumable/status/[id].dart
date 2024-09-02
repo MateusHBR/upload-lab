@@ -19,8 +19,7 @@ Future<Response> onRequest(
   }
 
   final uploadedBytes = await file.length();
-  final response = {'uploadedBytes': uploadedBytes};
   return Response.json(
-    body: response,
+    headers: {'Upload-Offset': '$uploadedBytes'},
   );
 }
