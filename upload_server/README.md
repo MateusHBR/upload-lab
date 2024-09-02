@@ -1,12 +1,34 @@
-# upload_server
+## Quick Start 🚀
 
-[![style: very good analysis][very_good_analysis_badge]][very_good_analysis_link]
-[![License: MIT][license_badge]][license_link]
-[![Powered by Dart Frog](https://img.shields.io/endpoint?url=https://tinyurl.com/dartfrog-badge)](https://dartfrog.vgv.dev)
+### Prerequisites
 
-An example application built with dart_frog
+In order to use Dart Frog you must have the Dart installed on your machine.
 
-[license_badge]: https://img.shields.io/badge/license-MIT-blue.svg
-[license_link]: https://opensource.org/licenses/MIT
-[very_good_analysis_badge]: https://img.shields.io/badge/style-very_good_analysis-B22C89.svg
-[very_good_analysis_link]: https://pub.dev/packages/very_good_analysis
+:::info
+Dart Frog requires Dart `">=3.0.0 <4.0.0"`
+:::
+
+### Installing
+
+```shell
+# 📦 Install the dart_frog cli from pub.dev
+dart pub global activate dart_frog_cli
+```
+
+### Run in development mode
+
+```shell
+# 🏁 Start the dev server
+dart_frog dev
+```
+
+
+### Create a Production Build
+
+
+```shell
+# 📦 Create a production build
+dart_frog build
+```
+
+
