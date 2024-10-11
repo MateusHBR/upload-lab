@@ -123,7 +123,7 @@ class Uploader: NSObject {
         print("MAXIMUM_CONCURRENT_TASKS = \(maxConcurrentTasks)")
         
         let timeoutIntervalForRequest = bundle.timeoutIntervalForRequest
-        print("TIMEOUT_INTERVAL_FOR_REQUEST = \(timeoutIntervalForRequest)ms")
+        print("TIMEOUT_INTERVAL_FOR_REQUEST = \(timeoutIntervalForRequest) seconds")
         
         // configure session for wifi only uploads
         let wifiConfiguration = URLSessionConfiguration.background(withIdentifier: Keys.wifiBackgroundSessionIdentifier)
