@@ -3,6 +3,7 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:mobile_flutter_uploader/mobile_flutter_uploader.dart';
+import 'package:path_provider/path_provider.dart';
 
 void main() {
   runApp(const MyApp());
@@ -23,6 +24,37 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     initPlatformState();
+    final documentsDirectory = getApplicationDocumentsDirectory();
+    documentsDirectory.then((value) async {
+      print(value.path);
+      final firstChunk = value.listSync().firstWhere(
+            (el) => el.path.contains('chunk_0'),
+          );
+
+      final taskId = await _mobileFlutterUploaderPlugin.uploadFile(
+        uri: Uri(
+          scheme: 'http',
+          host: 'localhost',
+          port: 8080,
+          path: 'resumable/upload/1728602810546',
+        ),
+        filePath: firstChunk.path,
+      );
+      print('taskId: $taskId');
+
+      // final secondChunk = value.listSync().firstWhere(
+      //       (el) => el.path.contains('chunk_1'),
+      //     );
+      // await _mobileFlutterUploaderPlugin.uploadFile(
+      //   uri: Uri(
+      //     scheme: 'http',
+      //     host: 'localhost',
+      //     port: 8080,
+      //     path: 'resumable/upload/1728519623787',
+      //   ),
+      //   filePath: secondChunk.path,
+      // );
+    });
   }
 
   // Platform messages are asynchronous, so we initialize in an async method.
@@ -32,7 +64,8 @@ class _MyAppState extends State<MyApp> {
     // We also handle the message potentially returning null.
     try {
       platformVersion =
-          await _mobileFlutterUploaderPlugin.getPlatformVersion() ?? 'Unknown platform version';
+          await _mobileFlutterUploaderPlugin.getPlatformVersion() ??
+              'Unknown platform version';
     } on PlatformException {
       platformVersion = 'Failed to get platform version.';
     }

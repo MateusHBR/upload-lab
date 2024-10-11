@@ -11,7 +11,24 @@ class MethodChannelMobileFlutterUploader extends MobileFlutterUploaderPlatform {
 
   @override
   Future<String?> getPlatformVersion() async {
-    final version = await methodChannel.invokeMethod<String>('getPlatformVersion');
+    final version = await methodChannel.invokeMethod<String>(
+      'getPlatformVersion',
+    );
     return version;
+  }
+
+  @override
+  Future<String> uploadFile({
+    required Uri uri,
+    required String filePath,
+  }) async {
+    final task = await methodChannel.invokeMethod<String>(
+      'uploadFile',
+      {
+        'url': uri.toString(),
+        'file_path': filePath,
+      },
+    );
+    return task!;
   }
 }

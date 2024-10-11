@@ -8,7 +8,8 @@ abstract class MobileFlutterUploaderPlatform extends PlatformInterface {
 
   static final Object _token = Object();
 
-  static MobileFlutterUploaderPlatform _instance = MethodChannelMobileFlutterUploader();
+  static MobileFlutterUploaderPlatform _instance =
+      MethodChannelMobileFlutterUploader();
 
   /// The default instance of [MobileFlutterUploaderPlatform] to use.
   ///
@@ -25,5 +26,12 @@ abstract class MobileFlutterUploaderPlatform extends PlatformInterface {
 
   Future<String?> getPlatformVersion() {
     throw UnimplementedError('platformVersion() has not been implemented.');
+  }
+
+  Future<String> uploadFile({
+    required Uri uri,
+    required String filePath,
+  }) {
+    throw UnimplementedError('uploadFile() has not been implemented.');
   }
 }
