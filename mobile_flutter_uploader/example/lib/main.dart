@@ -24,37 +24,6 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     initPlatformState();
-    final documentsDirectory = getApplicationDocumentsDirectory();
-    documentsDirectory.then((value) async {
-      print(value.path);
-      final firstChunk = value.listSync().firstWhere(
-            (el) => el.path.contains('chunk_0'),
-          );
-
-      final taskId = await _mobileFlutterUploaderPlugin.uploadFile(
-        uri: Uri(
-          scheme: 'http',
-          host: 'localhost',
-          port: 8080,
-          path: 'resumable/upload/1728602810546',
-        ),
-        filePath: firstChunk.path,
-      );
-      print('taskId: $taskId');
-
-      // final secondChunk = value.listSync().firstWhere(
-      //       (el) => el.path.contains('chunk_1'),
-      //     );
-      // await _mobileFlutterUploaderPlugin.uploadFile(
-      //   uri: Uri(
-      //     scheme: 'http',
-      //     host: 'localhost',
-      //     port: 8080,
-      //     path: 'resumable/upload/1728519623787',
-      //   ),
-      //   filePath: secondChunk.path,
-      // );
-    });
   }
 
   // Platform messages are asynchronous, so we initialize in an async method.
@@ -80,6 +49,28 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
+  Future<void> triggerUpload() async {
+    const host = 'localhost';
+    const port = 8080;
+
+    final documentsDirectory = await getApplicationDocumentsDirectory();
+    final firstChunk = documentsDirectory.listSync().firstWhere(
+          (el) => !el.path.contains('chunk'),
+        );
+    print('firstChunk: ${firstChunk.path}');
+
+    final taskId = await _mobileFlutterUploaderPlugin.uploadFile(
+      uri: Uri(
+        scheme: 'http',
+        host: host,
+        port: port,
+        path: 'resumable/upload/1729255332085',
+      ),
+      filePath: firstChunk.path,
+    );
+    print('taskId: $taskId');
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -89,6 +80,10 @@ class _MyAppState extends State<MyApp> {
         ),
         body: Center(
           child: Text('Running on: $_platformVersion\n'),
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: triggerUpload,
+          child: const Icon(Icons.upload),
         ),
       ),
     );

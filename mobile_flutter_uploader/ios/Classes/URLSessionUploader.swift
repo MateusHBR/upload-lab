@@ -7,13 +7,8 @@
 
 import Foundation
 
-struct Keys {
-    static let backgroundSessionIdentifier = "com.mobile_flutter_uploader.upload.background"
-    static let wifiBackgroundSessionIdentifier = "com.mobileflutter_uploader.upload.background.wifi"
-}
-
-class Uploader: NSObject {
-    static let shared = Uploader()
+class URLSessionUploader: NSObject {
+    static let shared = URLSessionUploader()
 
     var session: URLSession?
     var wifiSession: URLSession?
@@ -40,33 +35,88 @@ class Uploader: NSObject {
         delegates.append(delegate)
     }
 
-    func enqueueUploadTask(_ request: URLRequest, path: String, wifiOnly: Bool) -> URLSessionUploadTask? {
+    func enqueueUploadTask(_ request: URLRequest, task: UploadTask) -> URLSessionUploadTask? {
         guard let session = self.session,
               let wifiSession = self.wifiSession else {
+            print("No session created")
             return nil
         }
-
-        let activeSession = wifiOnly ? wifiSession : session
+        guard let firstChunk = task.chunksQueue.first else {
+            print("Chunk not found")
+            return nil
+        }
+        
+        let activeSession = task.allowCellular ? session : wifiSession
         let uploadTask = activeSession.uploadTask(
                 with: request,
-                fromFile: URL(fileURLWithPath: path)
+                fromFile: firstChunk.file.path
         )
-
-        // Create a random UUID as task description (& ID).
-        uploadTask.taskDescription = UUID().uuidString
-
-        let taskId = identifierForTask(uploadTask)
-
-        delegates.uploadEnqueued(taskId: taskId)
-
+        uploadTask.taskDescription = firstChunk.taskId
+        delegates.uploadEnqueued(taskId: firstChunk.taskId)
         uploadTask.resume()
 
         semaphore.wait()
-        self.runningTaskById[taskId] = UploadTask(taskId: taskId, status: .enqueue, progress: 0)
+        //TODO: Set task status to enqueued
+        let enqueuedTask = UploadTask(id: task.id,
+                                      tag: task.tag,
+                                      progress: task.progress,
+                                      allowCellular: task.allowCellular,
+                                      status: .enqueue,
+                                      file: task.file,
+                                      session: task.session,
+                                      chunksQueue: task.chunksQueue)
+        self.runningTaskById[identifierForTask(uploadTask)] = enqueuedTask
         semaphore.signal()
 
         return uploadTask
     }
+    
+    private func uploadNextChunk(lastTask: URLSessionUploadTask) {
+        print("NEXT CHUNK CALLED")
+        self.semaphore.wait()
+        defer { semaphore.signal() }
+        
+        guard let session = self.session,
+              let wifiSession = self.wifiSession else {
+            return
+        }
+
+        let lastTaskId = identifierForTask(lastTask)
+        guard var task = self.runningTaskById[lastTaskId], !task.chunksQueue.isEmpty else {
+            print("No more chunks \(self.runningTaskById[lastTaskId]?.id ?? "No task") --- \(self.runningTaskById[lastTaskId]?.chunksQueue.isEmpty ?? false)")
+            self.runningTaskById.removeValue(forKey: lastTaskId)
+            return
+        }
+        guard let taskSession = task.session else {
+            print("No upload session exists")
+            return
+        }
+        
+        let activeSession = task.allowCellular ? session : wifiSession
+        
+        let previousChunk = task.chunksQueue.remove(at: 0)
+        task.progress += Int64(previousChunk.file.size)
+        
+        guard let nextChunk = task.chunksQueue.first else { return }
+        
+        var request = URLRequest(url: taskSession.uploadURL)
+        request.httpMethod = "PUT"
+        request.setValue("bytes \(task.progress)-\(task.progress + Int64(nextChunk.file.size) - 1)/\(task.file.size)", forHTTPHeaderField: "Content-Range")
+        request.setValue(taskSession.contentType, forHTTPHeaderField: "Content-Type")
+        print("REQUEST: \(request) - HEADERS: \(request.allHTTPHeaderFields!)")
+        
+        let uploadTask = activeSession.uploadTask(
+                with: request,
+                fromFile: nextChunk.file.path
+        )
+        uploadTask.taskDescription = task.id
+
+        delegates.uploadEnqueued(taskId: nextChunk.taskId)
+        uploadTask.resume()
+        self.runningTaskById.removeValue(forKey: lastTaskId)
+        self.runningTaskById[identifierForTask(uploadTask)] = task
+    }
+    
 
     ///
     /// The description on URLSessionTask.taskIdentifier explains how the task is only unique within a session.
@@ -144,8 +194,16 @@ class Uploader: NSObject {
     }
 }
 
+// MARK: - Keys
+extension URLSessionUploader {
+    struct Keys {
+        static let backgroundSessionIdentifier = "com.mobile_flutter_uploader.upload.background"
+        static let wifiBackgroundSessionIdentifier = "com.mobileflutter_uploader.upload.background.wifi"
+    }
+}
+
 // MARK: - URLSessionDelegate
-extension Uploader: URLSessionDelegate {
+extension URLSessionUploader: URLSessionDelegate {
     func urlSession(_ session: URLSession, didBecomeInvalidWithError error: Error?) {
         print("URLSessionDidBecomeInvalidWithError:")
     }
@@ -168,7 +226,7 @@ extension Uploader: URLSessionDelegate {
 }
 
 // MARK: - URLSessionTaskDelegate
-extension Uploader: URLSessionTaskDelegate {
+extension URLSessionUploader: URLSessionTaskDelegate {
     func urlSession(_ session: URLSession, taskIsWaitingForConnectivity task: URLSessionTask) {
         print("URLSessionTaskIsWaitingForConnectivity:")
     }
@@ -182,9 +240,7 @@ extension Uploader: URLSessionTaskDelegate {
     
     public func urlSession(_ session: URLSession, task: URLSessionTask, didSendBodyData bytesSent: Int64, totalBytesSent: Int64, totalBytesExpectedToSend: Int64) {
         semaphore.wait()
-        defer {
-            semaphore.signal()
-        }
+        defer { semaphore.signal() }
 
         if totalBytesExpectedToSend == NSURLSessionTransferSizeUnknown {
             print("Unknown transfer size")
@@ -202,26 +258,34 @@ extension Uploader: URLSessionTaskDelegate {
             let runningTask = self.runningTaskById[taskId]
             print("URLSessionDidSendBodyData: \(taskId), byteSent: \(bytesSent), totalBytesSent: \(totalBytesSent), totalBytesExpectedToSend: \(totalBytesExpectedToSend), progress:\(progress)")
 
-            if runningTask != nil {
-                let isRunning: (Int, Int, Int) -> Bool = { (current, previous, step) in
-                    let prev = previous + step
-                    return (current == 0 || current > prev || current >= 100) &&  current != previous
-                }
+            guard let runningTask else { return }
 
-                if isRunning(Int(progress), runningTask!.progress, MobileFlutterUploaderPlugin.stepUpdate) {
-                    self.delegates.uploadProgressed(taskId: taskId, inStatus: .running, progress: Int(progress))
-                    self.runningTaskById[taskId] = UploadTask(taskId: taskId, status: .running, progress: Int(progress), tag: runningTask?.tag)
-                }
+            let isRunning: (Int, Int, Int) -> Bool = { (current, previous, step) in
+                let prev = previous + step
+                return (current == 0 || current > prev || current >= 100) &&  current != previous
             }
+            guard isRunning(
+                Int(progress),
+                runningTask.chunksQueue.first!.progress,
+                MobileFlutterUploaderPlugin.stepUpdate) else { return }
+            
+            self.delegates.uploadProgressed(taskId: taskId, inStatus: .running, progress: Int(progress))
+            let updatedTask = UploadTask(id: taskId,
+                                                      tag: runningTask.tag,
+                                                      progress: runningTask.progress,
+                                                      allowCellular: runningTask.allowCellular,
+                                                      status: .running,
+                                                      file: runningTask.file,
+                                                      session: runningTask.session,
+                                                      chunksQueue: runningTask.chunksQueue)
+            if var chunk = updatedTask.chunksQueue.first {
+                chunk.progress = Int(progress)
+            }
+            self.runningTaskById[taskId] = updatedTask
         }
     }
     
     public func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        semaphore.wait()
-        defer {
-            semaphore.signal()
-        }
-
         guard let uploadTask = task as? URLSessionUploadTask else {
             print("URLSessionDidCompleteWithError: not an upload task")
             return
@@ -231,7 +295,7 @@ extension Uploader: URLSessionTaskDelegate {
 
         if error != nil {
             print("URLSessionDidCompleteWithError: \(taskId) failed with \(error!.localizedDescription)")
-            var uploadStatus: UploadTaskStatus = .failed
+            var uploadStatus: UploadTask.Status = .failed
             switch error! {
             case URLError.cancelled:
                 uploadStatus = .canceled
@@ -245,9 +309,10 @@ extension Uploader: URLSessionTaskDelegate {
                                         errorCode: "upload_error",
                                         errorMessage: error?.localizedDescription ?? "",
                                         errorStackTrace: Thread.callStackSymbols)
-
+            semaphore.wait()
             self.runningTaskById.removeValue(forKey: taskId)
             self.uploadedData.removeValue(forKey: taskId)
+            semaphore.signal()
             return
         }
 
@@ -286,7 +351,7 @@ extension Uploader: URLSessionTaskDelegate {
 
         let statusText = uploadTask.state.statusText()
         if error == nil && !hasResponseError {
-            print("URLSessionDidCompleteWithError: response: \(message ?? "null"), task: \(statusText)")
+            print("URLSessionDidCompleteWithError: completed response: \(message ?? "null"), task: \(statusText)")
             self.delegates.uploadCompleted(taskId: taskId, message: message, statusCode: response?.statusCode ?? 200, headers: responseHeaders)
         } else if hasResponseError {
             print("URLSessionDidCompleteWithError: task: \(statusText) statusCode: \(response?.statusCode ?? -1), error:\(message ?? "null"), response:\(String(describing: response))")
@@ -302,14 +367,24 @@ extension Uploader: URLSessionTaskDelegate {
                 errorStackTrace: Thread.callStackSymbols
             )
         }
-
+        
+        semaphore.wait()
         self.uploadedData.removeValue(forKey: taskId)
-        self.runningTaskById.removeValue(forKey: taskId)
+        semaphore.signal()
+        
+        if response?.statusCode == 308 {
+            uploadNextChunk(lastTask: uploadTask)
+        } else {
+            semaphore.wait()
+            self.runningTaskById.removeValue(forKey: taskId)
+            print(self.runningTaskById)
+            semaphore.signal()
+        }
     }
 }
 
 // MARK: - URLSessionDataDelegate
-extension Uploader: URLSessionDataDelegate {
+extension URLSessionUploader: URLSessionDataDelegate {
     func urlSession(_ session: URLSession,
                     dataTask: URLSessionDataTask,
                     didReceive response: URLResponse,
@@ -324,7 +399,7 @@ extension Uploader: URLSessionDataDelegate {
         print("URLSessionDidReceiveData:")
 
         guard let uploadTask = dataTask as? URLSessionUploadTask else {
-            print("URLSessionDidReceiveData: not an uplaod task")
+            print("URLSessionDidReceiveData: not an upload task")
             return
         }
 

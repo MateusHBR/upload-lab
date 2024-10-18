@@ -7,11 +7,11 @@
 protocol UploaderDelegate {
     func uploadEnqueued(taskId: String)
 
-    func uploadProgressed(taskId: String, inStatus: UploadTaskStatus, progress: Int)
+    func uploadProgressed(taskId: String, inStatus: UploadTask.Status, progress: Int)
 
     func uploadCompleted(taskId: String, message: String?, statusCode: Int, headers: [String: Any])
 
-    func uploadFailed(taskId: String, inStatus: UploadTaskStatus, statusCode: Int, errorCode: String, errorMessage: String?, errorStackTrace: [String])
+    func uploadFailed(taskId: String, inStatus: UploadTask.Status, statusCode: Int, errorCode: String, errorMessage: String?, errorStackTrace: [String])
 }
 
 extension Array: UploaderDelegate where Element == UploaderDelegate {   
@@ -21,7 +21,7 @@ extension Array: UploaderDelegate where Element == UploaderDelegate {
         }
     }
 
-    func uploadProgressed(taskId: String, inStatus: UploadTaskStatus, progress: Int) {
+    func uploadProgressed(taskId: String, inStatus: UploadTask.Status, progress: Int) {
         forEach { delegate in
             delegate.uploadProgressed(taskId: taskId, inStatus: inStatus, progress: progress)
         }
@@ -33,7 +33,7 @@ extension Array: UploaderDelegate where Element == UploaderDelegate {
         }
     }
 
-    func uploadFailed(taskId: String, inStatus: UploadTaskStatus, statusCode: Int, errorCode: String, errorMessage: String?, errorStackTrace: [String]) {
+    func uploadFailed(taskId: String, inStatus: UploadTask.Status, statusCode: Int, errorCode: String, errorMessage: String?, errorStackTrace: [String]) {
         forEach { delegate in
             delegate.uploadFailed(taskId: taskId, inStatus: inStatus, statusCode: statusCode, errorCode: errorCode, errorMessage: errorMessage, errorStackTrace: errorStackTrace)
         }

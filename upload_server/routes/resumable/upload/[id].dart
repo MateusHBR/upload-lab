@@ -9,6 +9,7 @@ Future<Response> onRequest(
   String id,
 ) async {
   final request = context.request;
+  await Future.delayed(Duration(seconds: 10));
 
   final contentRangeFromHeader = request.headers['content-range'];
   final contentLength = int.tryParse(request.headers['content-length'] ?? '');

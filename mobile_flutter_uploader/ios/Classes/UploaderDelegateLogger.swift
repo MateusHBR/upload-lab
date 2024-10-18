@@ -10,7 +10,7 @@ class UploaderDelegateLogger: UploaderDelegate {
         print("Task enqueued: \(taskId)")
     }
 
-    func uploadProgressed(taskId: String, inStatus: UploadTaskStatus, progress: Int) {
+    func uploadProgressed(taskId: String, inStatus: UploadTask.Status, progress: Int) {
         print("Task progress: \(taskId) - \(inStatus) - \(progress)")
     }
 
@@ -18,7 +18,7 @@ class UploaderDelegateLogger: UploaderDelegate {
         print("Task completed: \(taskId) - \(message) - \(statusCode)")
     }
 
-    func uploadFailed(taskId: String, inStatus: UploadTaskStatus, statusCode: Int, errorCode: String, errorMessage: String?, errorStackTrace: [String]) {
+    func uploadFailed(taskId: String, inStatus: UploadTask.Status, statusCode: Int, errorCode: String, errorMessage: String?, errorStackTrace: [String]) {
         print("Task failed: \(taskId) - \(inStatus) - \(statusCode) - \(errorCode) - \(errorMessage)")
     }
 }
